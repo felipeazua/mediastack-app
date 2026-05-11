@@ -1,0 +1,46 @@
+name: Build MediaStack
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PySide6 xxhash pyinstaller pillow
+
+      - name: Download FFmpeg
+        run: |
+          curl -L -o ffmpeg.zip https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip
+          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg_extracted
+          $binPath = Get-ChildItem -Path ffmpeg_extracted -Filter "bin" -Recurse -Directory | Select-Object -First 1
+          Copy-Item "$($binPath.FullName)\ffmpeg.exe" -Destination .
+          Copy-Item "$($binPath.FullName)\ffprobe.exe" -Destination .
+
+      - name: Build .exe with PyInstaller
+        run: |
+          pyinstaller --noconfirm --onefile --windowed `
+            --name MediaStack `
+            --add-binary "ffmpeg.exe;." `
+            --add-binary "ffprobe.exe;." `
+            --hidden-import xxhash `
+            mediastack_gui.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediaStack-Windows
+          path: dist/MediaStack.exe
+          retention-days: 90
